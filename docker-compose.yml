@@ -1,0 +1,18 @@
+version: "3"
+
+services:
+  forge-server:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "25565:25565"
+      - "25575:25575"
+    volumes:
+      - "./merge:/minecraft/merge"
+      - "./server/world:/minecraft/world"
+      - "./server/logs:/minecraft/logs"
+      - "./server/mods:/minecraft/mods"
+      - "./server/config:/minecraft/config"
+    environment:
+#      - "MODPACK_MANIFEST_URL=http://mine.craft/manifest-server.json"
+#      - "CURSE_MODPACK_ID=12345"

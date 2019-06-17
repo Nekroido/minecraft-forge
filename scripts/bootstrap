@@ -1,0 +1,26 @@
+#!/bin/bash
+
+echo "Initializing"
+
+# Setting up env
+source ./etc/scripts/setup-env
+
+if [ ! -f ./eula.txt ] || [ "eula=true" != $(cat ./eula.txt) ]; then
+    echo " - Accepting EULA"
+    echo "eula=true" >./eula.txt
+fi
+
+# Merge files into Minecraft server's root folder (e.g. whitelist.json, server-icon.png, server.properties etc)
+if [ -d ./merge ]; then
+    source ./etc/scripts/copy-merge
+fi
+
+if [ -n "${CURSE_MODPACK_ID}" ]; then
+    source ./etc/scripts/setup-curse-modpack
+fi
+
+if [ -n "${MODPACK_MANIFEST_URL}" ]; then
+    source ./etc/scripts/setup-modpack
+fi
+
+source ./etc/scripts/run-server

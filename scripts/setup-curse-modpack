@@ -1,0 +1,83 @@
+#!/bin/bash
+
+readonly CURSE_API="https://addons-ecs.forgesvc.net/api/addon/"
+readonly JQ_QUERY='[.[]] | map(select(.gameVersion[] | contains('"$MINECRAFT_VERSION"'))) | map(select(.releaseType == 1)) | max_by(.id)'
+
+dowloadProjectFile() {
+    MOD_META_URL=${CURSE_API}${1}/file/${2}
+    MOD_FILE=$(curl -sL "${MOD_META_URL}")
+    if [ -z "$MOD_FILE" ]; then
+        echo " ! Failed downloading mod metadata from ${MOD_META_URL}!"
+        exit 1
+    fi
+
+    MOD_FILE_TITLE=$(jq -r '.fileName' <<<${MOD_FILE})
+    MOD_FILE_NAME="./mods/$1-$2-$(jq -r '.fileNameOnDisk' <<<${MOD_FILE})"
+    MOD_FILE_URL=$(jq -r '.downloadUrl' <<<${MOD_FILE})
+
+    if [ -n "$MOD_FILE" ] && [ -n "$MOD_FILE_URL" ]; then
+        echo -ne " --- ${MOD_FILE_TITLE}: "
+        if [[ ! "${MOD_FILE_NAME}" =~ ^.*\.jar$ ]]; then
+            echo "is not a JAR file! Skipping..."
+        else
+            if [ -f "$MOD_FILE_NAME" ]; then
+                echo "correct file already exists. Skipping..."
+                return
+            fi
+            for file in ./mods/$1-*; do
+                if [[ -f "$file" ]]; then
+                    rm -f "$file"
+                    echo -ne "deleted old $file... "
+                fi
+            done
+            echo -ne "downloading... "
+            wget -q -cO - "${MOD_FILE_URL}" >"${MOD_FILE_NAME}"
+            echo "Done!"
+        fi
+    fi
+}
+
+echo " - Fetching modpack meta"
+LATEST_MODPACK_FILE=$(curl -sL "${CURSE_API}${CURSE_MODPACK_ID}/files" | jq -rc '[.[]] | map(select(.gameVersion[] | contains('"\"${MINECRAFT_VERSION}\""'))) | map(select(.releaseType == 1)) | max_by(.id)')
+if [ -z "$LATEST_MODPACK_FILE" ]; then
+    echo " !! No suitable modpack file to download or API is down !!"
+    exit 1
+fi
+
+LATEST_MODPACK_FILE_TITLE=$(jq -r '.fileName' <<<${LATEST_MODPACK_FILE})
+LATEST_MODPACK_FILE_ID=$(jq -r '.id' <<<"${LATEST_MODPACK_FILE}")
+LATEST_MODPACK_FILE_URL=$(jq -r '.downloadUrl' <<<"${LATEST_MODPACK_FILE}")
+
+LAST_UPDATE_LOCK_FILE=curse_modpack_last_update.txt
+LAST_UPDATE_FILE_ID=$(cat ${LAST_UPDATE_LOCK_FILE})
+
+if [ ! -f ${LAST_UPDATE_LOCK_FILE} ] || [ ${LATEST_MODPACK_FILE_ID} != $LAST_UPDATE_FILE_ID ]; then
+    echo " -- Downloading ${LATEST_MODPACK_FILE_TITLE}"
+    wget -q -cO - "${LATEST_MODPACK_FILE_URL}" >./modpack.zip
+    if [ -f modpack.zip ]; then
+        echo " -- Unpacking modpack..."
+        unzip -qquo ./modpack.zip -d ./tmp
+        if [ -f ./tmp/manifest.json ]; then
+            echo " -- Copying config files..."
+            cp -rf ./tmp/overrides/. .
+            echo " -- Downloading mods"
+            jq -r '.files[] | [.projectID, .fileID] | @tsv' <./tmp/manifest.json |
+                while IFS=$'\t' read -r projectID fileID; do
+                    dowloadProjectFile $projectID $fileID
+                done
+            echo ${LATEST_MODPACK_FILE_ID} >${LAST_UPDATE_LOCK_FILE}
+        else
+            echo " !! The modpack has no manifest file !!"
+            exit 1
+        fi
+        echo -ne " -- Tidying up..."
+        rm -f ./modpack.zip
+        rm -rf ./tmp
+        echo " Done!"
+    else
+        echo " !! Failed downloading the modpack file !!"
+        exit 1
+    fi
+else
+    echo " -- No updates found. Skipping..."
+fi

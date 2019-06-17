@@ -1,0 +1,21 @@
+#!/bin/bash
+
+JAVA_COMMAND="/usr/bin/env java"
+
+# Disable fancy console output
+JAVA_COMMAND="${JAVA_COMMAND} -Djline.terminal=jline.UnsupportedTerminal"
+
+# Setting max memory
+JAVA_COMMAND="${JAVA_COMMAND} -Xmx${SERVER_MAX_MEMORY}"
+
+# Setting start memory
+JAVA_COMMAND="${JAVA_COMMAND} -Xms${SERVER_START_MEMORY}"
+
+# Setting meta size limit
+JAVA_COMMAND="${JAVA_COMMAND}  -XX:MaxMetaspaceSize=${SERVER_MAX_META}"
+
+# Setting Netty leak detection (disabled, simple, advanced, paranoid)
+JAVA_COMMAND="${JAVA_COMMAND} -Dio.netty.leakDetection.level=${SERVER_LEAK_DETECTION}"
+
+echo " - Starting server"
+exec ${JAVA_COMMAND} -jar "${FORGE_JAR}" ${SERVER_OPTS}

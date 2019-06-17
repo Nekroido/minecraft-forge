@@ -1,0 +1,19 @@
+#!/bin/bash
+
+declare -x SERVER_START_MEMORY
+[[ -z "${SERVER_START_MEMORY}" ]] && SERVER_START_MEMORY="256M"
+
+declare -x SERVER_MAX_MEMORY
+[[ -z "${SERVER_MAX_MEMORY}" ]] && SERVER_MAX_MEMORY="1024M"
+
+declare -x SERVER_MAX_META
+[[ -z "${SERVER_MAX_META}" ]] && SERVER_MAX_META="128M"
+
+declare -x SERVER_OPTS
+[[ -z "${SERVER_OPTS}" ]] && SERVER_OPTS="nogui"
+
+declare -x SERVER_LEAK_DETECTION
+[[ -z "${SERVER_LEAK_DETECTION}" ]] && SERVER_LEAK_DETECTION="simple"
+
+declare -x JAVA_OPTS
+[[ -z "${JAVA_OPTS}" ]] && JAVA_OPTS="-server -XX:+UseConcMarkSweepGC"

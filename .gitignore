@@ -1,0 +1,10 @@
+.DS_Store
+.vscode
+.idea
+.env
+.env.local
+docker-compose.dev.yml
+
+mods/**/*.jar
+server/
+merge/

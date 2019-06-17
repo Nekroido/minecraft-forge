@@ -1,0 +1,68 @@
+#!/bin/bash
+
+downloadModFile() {
+    MOD_NAME=$1
+    MOD_FILENAME=$2
+    MOD_DOWNLOAD_URL=$3
+    MOD_FILE_CHECKSUM=$4
+
+    if [ -z "$MOD_NAME" ] || [ -z "$MOD_FILENAME" ] || [ -z "$MOD_DOWNLOAD_URL" ] || [ -z "$MOD_FILE_CHECKSUM" ]; then
+        echo " !! Mod data corrupted !!"
+        exit 1
+    fi
+
+    echo -ne " --- ${MOD_NAME}: "
+    if [[ ! "${MOD_FILENAME}" =~ ^.*\.jar$ ]]; then
+        echo "is not a JAR file! Skipping..."
+    else
+        MOD_FILENAME_HASH=($(md5sum <<<${MOD_NAME})) # Translating mod's name into MD5 hash for more control
+        MOD_FILENAME_ON_DISK="./mods/${MOD_FILENAME_HASH}.jar"
+        if [ -f "$MOD_FILENAME_ON_DISK" ]; then
+            MOD_CHECKSUM_ON_DISK=($(md5sum ${MOD_FILENAME_ON_DISK}))
+        fi
+        if [ -f "$MOD_FILENAME_ON_DISK" ] && [[ "${MOD_FILE_CHECKSUM}" == "${MOD_CHECKSUM_ON_DISK}" ]]; then
+            echo "correct file already exists. Skipping..."
+        else
+            echo -ne "downloading... "
+            wget -q -cO - "${MOD_DOWNLOAD_URL}" >"${MOD_FILENAME_ON_DISK}"
+            if [ ! -f ${MOD_FILENAME_ON_DISK} ]; then
+                echo "Failed!"
+            else
+                echo "Done!"
+            fi
+        fi
+    fi
+}
+
+echo " - Fetching modpack meta"
+
+MODPACK=$(curl -sL "${MODPACK_MANIFEST_URL}")
+if [ -z "$MODPACK" ]; then
+    echo " !! Modpack API is down !!"
+    exit 1
+fi
+
+MODPACK_TYPE=$(jq -r '.type' <<<${MODPACK})
+MODPACK_UPDATED=$(jq -r '.updated' <<<${MODPACK})
+MODPACK_MODS=$(jq -r '.mods[][]' <<<${MODPACK})
+
+if [ "${MODPACK_TYPE}" != "server" ] && [ "${MODPACK_TYPE}" != "full" ]; then
+    echo " !! Modpack type ${MODPACK_TYPE} cannot be used !! "
+    exit 1
+fi
+
+LAST_UPDATE_LOCK_FILE=modpack_last_update.txt
+if [ -f ${LAST_UPDATE_LOCK_FILE} ]; then
+    LAST_UPDATE=$(cat ${LAST_UPDATE_LOCK_FILE})
+fi
+
+if [ ! -f ${LAST_UPDATE_LOCK_FILE} ] || [ ${MODPACK_UPDATED} -gt ${LAST_UPDATE} ]; then
+    echo " -- Downloading mods"
+    jq -r '[.name, .filename, .downloadUrl, .checksum] | @tsv' <<<${MODPACK_MODS} |
+        while IFS=$'\t' read -r name filename downloadUrl checksum; do
+            downloadModFile "$name" "$filename" "$downloadUrl" "$checksum"
+        done
+    echo "${MODPACK_UPDATED}" >"${LAST_UPDATE_LOCK_FILE}"
+else
+    echo " -- No updates found. Skipping..."
+fi

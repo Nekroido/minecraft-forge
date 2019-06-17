@@ -1,0 +1,5 @@
+#!/bin/bash
+
+echo -ne " - Copying /merge folder into server's root..."
+cp -rf ./merge/. .
+echo " Done!"
